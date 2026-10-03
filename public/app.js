@@ -128,14 +128,134 @@ function showRoom(state) {
     : state.players.length < 2 ? 'En az 2 oyuncu lazım.' : '';
 }
 
-socket.on('room:joined', showRoom);
-socket.on('room:update', s => { if (!$('room').hidden) showRoom(s); });
-socket.on('game:started', ({ rounds }) => {
+// ---- Oyun ----
+let lastRoom = null;
+let hand = [], pickedIdx = null, played = false, tick = null, progress = { played: 0, total: 0 };
+
+function cardEl(n) {
+  const img = new Image();
+  img.className = 'card-img';
+  img.alt = '';
+  img.src = `images/cards/card${n}.png`;
+  img.onerror = () => {
+    const d = document.createElement('div');
+    d.className = 'card-img';
+    d.textContent = `#${n}`;
+    img.replaceWith(d);
+  };
+  return img;
+}
+
+function renderHand() {
+  const ul = $('hand');
+  ul.replaceChildren();
+  hand.forEach((c, i) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.className = 'card-btn';
+    b.disabled = played;
+    b.setAttribute('aria-pressed', i === pickedIdx);
+    b.append(cardEl(c));
+    b.onclick = () => { pickedIdx = i; renderHand(); };
+    li.append(b);
+    ul.append(li);
+  });
+  $('playBtn').disabled = played || pickedIdx === null;
+}
+
+function countdown(sec, label) {
+  clearInterval(tick);
+  let left = sec;
+  const upd = () => { $('timer').textContent = `${label}${left} sn`; };
+  upd();
+  tick = setInterval(() => { left = Math.max(0, left - 1); upd(); if (!left) clearInterval(tick); }, 1000);
+}
+
+function updateStatus() {
+  $('status').textContent = played
+    ? `Kartın atıldı. Bekleniyor: ${progress.played}/${progress.total}`
+    : `Bir kart seç ve at. Atanlar: ${progress.played}/${progress.total}`;
+}
+
+socket.on('room:joined', s => { lastRoom = s; showRoom(s); });
+socket.on('room:update', s => { lastRoom = s; if (!$('room').hidden) showRoom(s); });
+
+socket.on('game:started', () => {
   show('game');
-  $('gameInfo').textContent = `Oyun başladı! ${rounds} tur oynanacak. Oyun ekranı bir sonraki aşamada gelecek.`;
+  hand = []; pickedIdx = null; played = false;
+  $('chatLog').replaceChildren();
+  $('reveal').hidden = true;
+  $('backBtn').hidden = true;
+  renderHand();
+});
+socket.on('game:hand', ({ cards }) => { hand = cards; pickedIdx = null; renderHand(); });
+
+socket.on('round:start', ({ round, total, prompt, seconds }) => {
+  played = false; pickedIdx = null;
+  progress = { played: 0, total: lastRoom ? lastRoom.players.length : 0 };
+  $('roundLabel').textContent = `TUR ${round}/${total}`;
+  $('promptText').textContent = prompt;
+  $('reveal').hidden = true;
+  countdown(seconds, '');
+  updateStatus();
+  renderHand();
+});
+socket.on('round:progress', p => { progress = p; updateStatus(); });
+socket.on('card:ok', ({ card }) => {
+  const i = hand.indexOf(card);
+  if (i !== -1) hand.splice(i, 1);
+  played = true; pickedIdx = null;
+  updateStatus();
+  renderHand();
+});
+socket.on('round:reveal', ({ plays, seconds }) => {
+  played = true;
+  renderHand();
+  const ul = $('reveal');
+  ul.replaceChildren();
+  for (const p of plays) {
+    const li = document.createElement('li');
+    li.className = 'reveal-item';
+    const av = document.createElement('div'); av.className = 'avatar'; setAvatar(av, p.avatar);
+    const nm = document.createElement('span'); nm.className = 'pname'; nm.textContent = p.name;
+    li.append(av, nm, cardEl(p.card));
+    ul.append(li);
+  }
+  ul.hidden = false;
+  countdown(seconds, 'Sonraki tur: ');
+  $('status').textContent = 'Kartlar açıldı! Emoji puanlama bir sonraki aşamada gelecek.';
+});
+socket.on('game:over', () => {
+  clearInterval(tick);
+  $('timer').textContent = '';
+  $('status').textContent = 'Oyun bitti! Sıralama ekranı bir sonraki aşamada gelecek.';
+  $('backBtn').hidden = false;
+  $('playBtn').disabled = true;
+});
+socket.on('game:aborted', () => { clearInterval(tick); show('room'); });
+
+$('playBtn').onclick = () => {
+  if (pickedIdx !== null && !played) socket.emit('card:play', { card: hand[pickedIdx] });
+};
+$('backBtn').onclick = () => { show('room'); if (lastRoom) showRoom(lastRoom); };
+
+// ---- Sohbet ----
+socket.on('chat:msg', ({ name, text }) => {
+  const li = document.createElement('li');
+  const b = document.createElement('strong'); b.textContent = name + ': ';
+  li.append(b, document.createTextNode(text));
+  const log = $('chatLog');
+  log.append(li);
+  log.scrollTop = log.scrollHeight;
+});
+$('chatInput').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const text = e.target.value.trim();
+  if (text) socket.emit('chat:send', { text });
+  e.target.value = '';
 });
 
 $('startBtn').onclick = () => socket.emit('game:start');
-const leave = () => { socket.emit('room:leave'); show('lobby'); selected = null; say(''); };
+const leave = () => { clearInterval(tick); socket.emit('room:leave'); show('lobby'); selected = null; say(''); };
 $('leaveBtn').onclick = leave;
 $('gameLeaveBtn').onclick = leave;
