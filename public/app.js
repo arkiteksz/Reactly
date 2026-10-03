@@ -208,22 +208,76 @@ socket.on('card:ok', ({ card }) => {
   updateStatus();
   renderHand();
 });
-socket.on('round:reveal', ({ plays, seconds }) => {
+let emojis = [];
+const revealItem = id => $('reveal').querySelector(`[data-id="${id}"]`);
+
+socket.on('round:reveal', ({ plays, emojis: em, seconds }) => {
   played = true;
+  emojis = em;
   renderHand();
   const ul = $('reveal');
   ul.replaceChildren();
   for (const p of plays) {
     const li = document.createElement('li');
     li.className = 'reveal-item';
+    li.dataset.id = p.id;
     const av = document.createElement('div'); av.className = 'avatar'; setAvatar(av, p.avatar);
     const nm = document.createElement('span'); nm.className = 'pname'; nm.textContent = p.name;
-    li.append(av, nm, cardEl(p.card));
+    const foot = document.createElement('div');
+    if (p.id === socket.id) {
+      foot.className = 'own-note';
+      foot.textContent = 'Senin kartın';
+    } else {
+      foot.className = 'vote-row';
+      em.forEach((x, i) => {
+        const b = document.createElement('button');
+        b.className = 'emoji-btn';
+        b.textContent = x.e;
+        b.title = `${x.points} puan`;
+        b.setAttribute('aria-pressed', 'false');
+        b.onclick = () => socket.emit('vote', { target: p.id, emoji: i });
+        foot.append(b);
+      });
+    }
+    li.append(av, nm, cardEl(p.card), foot);
     ul.append(li);
   }
   ul.hidden = false;
+  countdown(seconds, 'Süre: ');
+  $('status').textContent = 'Beğendiğin kartlara emoji bırak. Kendi kartına bırakamazsın.';
+});
+
+socket.on('vote:ok', ({ target, emoji }) => {
+  const li = revealItem(target);
+  if (!li) return;
+  li.querySelectorAll('.emoji-btn').forEach((b, i) => b.setAttribute('aria-pressed', i === emoji));
+});
+
+socket.on('vote:progress', ({ done, total }) => {
+  $('status').textContent = `Emojileri bırakan: ${done}/${total}. Kendi kartına bırakamazsın.`;
+});
+
+socket.on('round:scores', ({ results, seconds }) => {
+  for (const r of results) {
+    const li = revealItem(r.id);
+    if (!li) continue;
+    const old = li.lastElementChild;
+    const box = document.createElement('div');
+    box.className = 'tally';
+    const line = document.createElement('div');
+    line.className = 'tally-emojis';
+    line.textContent = r.counts.map((n, i) => n ? `${emojis[i].e}×${n}` : '').filter(Boolean).join(' ') || 'Emoji yok';
+    const gain = document.createElement('div');
+    gain.className = 'gain';
+    gain.textContent = `+${r.gained} puan`;
+    const total = document.createElement('div');
+    total.className = 'total';
+    total.textContent = `Toplam: ${r.total}`;
+    box.append(line, gain, total);
+    old.replaceWith(box);
+  }
   countdown(seconds, 'Sonraki tur: ');
-  $('status').textContent = 'Kartlar açıldı! Emoji puanlama bir sonraki aşamada gelecek.';
+  $('status').textContent = 'Tur puanları!';
 });
 socket.on('game:over', () => {
   clearInterval(tick);
