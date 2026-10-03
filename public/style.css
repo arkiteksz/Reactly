@@ -92,8 +92,34 @@ body {
 .round-btn:disabled { cursor: default; }
 .round-btn:disabled:not([aria-pressed="true"]) { opacity: .5; }
 
+/* ---- Oyun ekranı ---- */
+.frame.arena { grid-template-columns: 1fr; gap: 18px; width: min(980px, 100%); }
+.stage { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.prompt-card { width: min(460px, 100%); background: #fff; border: 4px solid var(--ink); border-radius: 18px; overflow: hidden; box-shadow: 0 5px 0 var(--ink); }
+.prompt-head { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 20px; color: #fff; background: #f0b323; border-bottom: 4px solid var(--ink); text-shadow: 0 2px 0 var(--ink); }
+.prompt-body { margin: 0; padding: 18px 20px; font-size: 22px; line-height: 1.25; text-align: center; }
+.reveal { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.reveal-item { width: 120px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px; background: #fff; border: 4px solid var(--ink); border-radius: 16px; box-shadow: 0 4px 0 var(--ink); }
+.reveal-item .avatar { width: 38px; height: 38px; margin: 0; border-width: 3px; box-shadow: none; cursor: default; }
+.reveal-item .pname { font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: grid; place-items: center; background: #ece4ff; border-radius: 8px; font-size: 20px; }
+.row { display: flex; gap: 10px; }
+.small { font-size: 14px; padding: 6px 16px; }
+.bottom { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; align-items: end; }
+.hand-box { display: flex; flex-direction: column; gap: 10px; }
+.hand { list-style: none; margin: 0; padding: 18px 10px 10px; display: flex; flex-wrap: wrap; gap: 8px; min-height: 140px; background: var(--panel); border: 4px solid var(--ink); border-radius: 18px; }
+.card-btn { width: 76px; padding: 0; overflow: hidden; background: #fff; cursor: pointer; border: 3px solid var(--ink); border-radius: 10px; box-shadow: 0 3px 0 var(--ink); transition: transform .12s; }
+.card-btn .card-img { border-radius: 0; }
+.card-btn[aria-pressed="true"] { transform: translateY(-10px); background: var(--yellow); box-shadow: 0 3px 0 var(--ink), 0 0 0 3px #fff; }
+.card-btn:disabled { cursor: default; opacity: .6; }
+.chat { display: flex; flex-direction: column; height: 200px; overflow: hidden; background: #fff; border: 4px solid var(--ink); border-radius: 18px; }
+.chat-log { list-style: none; margin: 0; padding: 8px 10px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; font-family: Arial, sans-serif; font-size: 14px; }
+.chat-log li { padding: 2px 8px; background: #e9e9e9; border-radius: 6px; word-break: break-word; }
+.chat-input { padding: 9px 12px; font: inherit; font-size: 15px; border: 0; border-top: 3px solid var(--ink); }
+
 @media (max-width: 680px) {
   .frame { grid-template-columns: 1fr; }
   .rooms { min-height: 200px; }
+  .bottom { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
