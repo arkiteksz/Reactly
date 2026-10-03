@@ -49,7 +49,6 @@
       <ul id="reveal" class="reveal" hidden></ul>
       <p id="status" class="ask" role="status"></p>
       <div class="row">
-        <button id="backBtn" class="pill cyan small" hidden>ODAYA DÖN</button>
         <button id="gameLeaveBtn" class="pill pink small">ODADAN AYRIL</button>
       </div>
     </div>
@@ -62,6 +61,18 @@
         <ul id="chatLog" class="chat-log" aria-live="polite"></ul>
         <input id="chatInput" class="chat-input" maxlength="200" placeholder="Mesaj yaz..." autocomplete="off">
       </div>
+    </div>
+  </section>
+</main>
+
+<main id="board" class="screen" hidden>
+  <h1 class="title-tag">SIRALAMA</h1>
+  <section class="frame single">
+    <ol id="podium" class="podium" aria-label="İlk üç"></ol>
+    <ul id="boardList" class="players board-list" hidden></ul>
+    <div class="row">
+      <button id="boardBackBtn" class="pill cyan">ODAYA DÖN</button>
+      <button id="boardLeaveBtn" class="pill pink">ODADAN AYRIL</button>
     </div>
   </section>
 </main>
