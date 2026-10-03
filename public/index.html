@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tepki Oyunu</title>
+<title>Reactly</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
@@ -26,10 +26,23 @@
 
 <main id="room" class="screen" hidden>
   <h1 id="roomTitle" class="title-tag">ODA</h1>
-  <section class="frame single">
+  <section class="frame">
     <ul id="playerList" class="players"></ul>
-    <p class="msg">Oyun başlatma ekranı bir sonraki aşamada gelecek.</p>
-    <button id="leaveBtn" class="pill pink">ODADAN AYRIL</button>
+    <aside class="profile">
+      <p class="ask">Kaç tur oynayacaksınız?</p>
+      <div id="roundPicker" class="rounds" role="group" aria-label="Tur sayısı"></div>
+      <button id="startBtn" class="pill green">OYUNU BAŞLAT</button>
+      <button id="leaveBtn" class="pill pink">ODADAN AYRIL</button>
+      <p id="roomMsg" class="msg" role="alert"></p>
+    </aside>
+  </section>
+</main>
+
+<main id="game" class="screen" hidden>
+  <h1 class="title-tag">VER TEPKİYİ!</h1>
+  <section class="frame single">
+    <p id="gameInfo" class="ask"></p>
+    <button id="gameLeaveBtn" class="pill pink">ODADAN AYRIL</button>
   </section>
 </main>
 
