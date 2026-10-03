@@ -88,7 +88,7 @@ socket.on('error:msg', t => { say(t); $('roomMsg').textContent = t; });
 const ROUND_OPTIONS = [3, 5, 7, 10];
 
 function show(id) {
-  for (const s of ['lobby', 'room', 'game']) $(s).hidden = s !== id;
+  for (const s of ['lobby', 'room', 'game', 'board']) $(s).hidden = s !== id;
 }
 
 function showRoom(state) {
@@ -185,7 +185,6 @@ socket.on('game:started', () => {
   hand = []; pickedIdx = null; played = false;
   $('chatLog').replaceChildren();
   $('reveal').hidden = true;
-  $('backBtn').hidden = true;
   renderHand();
 });
 socket.on('game:hand', ({ cards }) => { hand = cards; pickedIdx = null; renderHand(); });
@@ -279,19 +278,49 @@ socket.on('round:scores', ({ results, seconds }) => {
   countdown(seconds, 'Sonraki tur: ');
   $('status').textContent = 'Tur puanları!';
 });
-socket.on('game:over', () => {
+function renderBoard(scores) {
+  const rank = i => scores.findIndex(s => s.score === scores[i].score) + 1;
+  const names = ['first', 'second', 'third'];
+  const podium = $('podium');
+  podium.replaceChildren();
+  for (const i of [1, 0, 2].filter(i => i < scores.length)) {
+    const p = scores[i];
+    const li = document.createElement('li');
+    li.className = 'step ' + names[i];
+    const crown = document.createElement('div'); crown.className = 'crown'; crown.textContent = i === 0 ? '👑' : '';
+    const av = document.createElement('div'); av.className = 'avatar'; setAvatar(av, p.avatar);
+    const nm = document.createElement('div'); nm.className = 'sname'; nm.textContent = p.name;
+    const sc = document.createElement('div'); sc.className = 'sscore'; sc.textContent = `${p.score} puan`;
+    const block = document.createElement('div'); block.className = 'block'; block.textContent = rank(i);
+    li.append(crown, av, nm, sc, block);
+    podium.append(li);
+  }
+  const list = $('boardList');
+  list.replaceChildren();
+  scores.slice(3).forEach((p, k) => {
+    const li = document.createElement('li');
+    li.className = 'player';
+    const rk = document.createElement('span'); rk.className = 'rank'; rk.textContent = rank(k + 3);
+    const av = document.createElement('div'); av.className = 'avatar'; setAvatar(av, p.avatar);
+    const nm = document.createElement('span'); nm.textContent = p.name;
+    const sc = document.createElement('span'); sc.className = 'score'; sc.textContent = `${p.score} puan`;
+    li.append(rk, av, nm, sc);
+    list.append(li);
+  });
+  list.hidden = scores.length <= 3;
+}
+
+socket.on('game:over', ({ scores }) => {
   clearInterval(tick);
-  $('timer').textContent = '';
-  $('status').textContent = 'Oyun bitti! Sıralama ekranı bir sonraki aşamada gelecek.';
-  $('backBtn').hidden = false;
-  $('playBtn').disabled = true;
+  renderBoard(scores);
+  show('board');
 });
 socket.on('game:aborted', () => { clearInterval(tick); show('room'); });
 
 $('playBtn').onclick = () => {
   if (pickedIdx !== null && !played) socket.emit('card:play', { card: hand[pickedIdx] });
 };
-$('backBtn').onclick = () => { show('room'); if (lastRoom) showRoom(lastRoom); };
+$('boardBackBtn').onclick = () => { show('room'); if (lastRoom) showRoom(lastRoom); };
 
 // ---- Sohbet ----
 socket.on('chat:msg', ({ name, text }) => {
@@ -313,3 +342,4 @@ $('startBtn').onclick = () => socket.emit('game:start');
 const leave = () => { clearInterval(tick); socket.emit('room:leave'); show('lobby'); selected = null; say(''); };
 $('leaveBtn').onclick = leave;
 $('gameLeaveBtn').onclick = leave;
+$('boardLeaveBtn').onclick = leave;
