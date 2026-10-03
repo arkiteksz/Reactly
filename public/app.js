@@ -14,7 +14,8 @@ function avatarEl(i) {
   img.src = `images/avatars/avatar${i}.png`;
   img.onerror = () => {
     const d = document.createElement('div');
-    d.style.cssText = `width:100%;height:100%;display:grid;place-items:center;font-size:56px;background:${FALLBACK[i]}`;
+    d.className = 'avatar-fallback';
+    d.style.background = FALLBACK[i];
     d.textContent = FACES[i];
     img.replaceWith(d);
   };
@@ -82,7 +83,7 @@ $('joinBtn').onclick = () => {
 };
 
 socket.on('rooms', renderRooms);
-socket.on('error:msg', t => { say(t); $('roomMsg').textContent = t; });
+socket.on('error:msg', t => { say(t); $('roomMsg').textContent = t; Sound.play('error'); });
 
 // ---- Oda içi ----
 const ROUND_OPTIONS = [3, 5, 7, 10];
@@ -163,12 +164,12 @@ function renderHand() {
   $('playBtn').disabled = played || pickedIdx === null;
 }
 
-function countdown(sec, label) {
+function countdown(sec, label, ticks) {
   clearInterval(tick);
   let left = sec;
   const upd = () => { $('timer').textContent = `${label}${left} sn`; };
   upd();
-  tick = setInterval(() => { left = Math.max(0, left - 1); upd(); if (!left) clearInterval(tick); }, 1000);
+  tick = setInterval(() => { left = Math.max(0, left - 1); upd(); if (ticks && left > 0 && left <= 5) Sound.play('tick'); if (!left) clearInterval(tick); }, 1000);
 }
 
 function updateStatus() {
@@ -178,10 +179,15 @@ function updateStatus() {
 }
 
 socket.on('room:joined', s => { lastRoom = s; showRoom(s); });
-socket.on('room:update', s => { lastRoom = s; if (!$('room').hidden) showRoom(s); });
+socket.on('room:update', s => {
+  if (!$('room').hidden && lastRoom && s.players.length > lastRoom.players.length) Sound.play('join');
+  lastRoom = s;
+  if (!$('room').hidden) showRoom(s);
+});
 
 socket.on('game:started', () => {
   show('game');
+  Sound.play('start');
   hand = []; pickedIdx = null; played = false;
   $('chatLog').replaceChildren();
   $('reveal').hidden = true;
@@ -190,12 +196,13 @@ socket.on('game:started', () => {
 socket.on('game:hand', ({ cards }) => { hand = cards; pickedIdx = null; renderHand(); });
 
 socket.on('round:start', ({ round, total, prompt, seconds }) => {
+  Sound.play('round');
   played = false; pickedIdx = null;
   progress = { played: 0, total: lastRoom ? lastRoom.players.length : 0 };
   $('roundLabel').textContent = `TUR ${round}/${total}`;
   $('promptText').textContent = prompt;
   $('reveal').hidden = true;
-  countdown(seconds, '');
+  countdown(seconds, '', true);
   updateStatus();
   renderHand();
 });
@@ -204,6 +211,7 @@ socket.on('card:ok', ({ card }) => {
   const i = hand.indexOf(card);
   if (i !== -1) hand.splice(i, 1);
   played = true; pickedIdx = null;
+  Sound.play('play');
   updateStatus();
   renderHand();
 });
@@ -213,6 +221,7 @@ const revealItem = id => $('reveal').querySelector(`[data-id="${id}"]`);
 socket.on('round:reveal', ({ plays, emojis: em, seconds }) => {
   played = true;
   emojis = em;
+  Sound.play('reveal');
   renderHand();
   const ul = $('reveal');
   ul.replaceChildren();
@@ -233,6 +242,7 @@ socket.on('round:reveal', ({ plays, emojis: em, seconds }) => {
         b.className = 'emoji-btn';
         b.textContent = x.e;
         b.title = `${x.points} puan`;
+        b.dataset.i = i;
         b.setAttribute('aria-pressed', 'false');
         b.onclick = () => socket.emit('vote', { target: p.id, emoji: i });
         foot.append(b);
@@ -242,7 +252,7 @@ socket.on('round:reveal', ({ plays, emojis: em, seconds }) => {
     ul.append(li);
   }
   ul.hidden = false;
-  countdown(seconds, 'Süre: ');
+  countdown(seconds, 'Süre: ', true);
   $('status').textContent = 'Beğendiğin kartlara emoji bırak. Kendi kartına bırakamazsın.';
 });
 
@@ -257,6 +267,7 @@ socket.on('vote:progress', ({ done, total }) => {
 });
 
 socket.on('round:scores', ({ results, seconds }) => {
+  Sound.play('score');
   for (const r of results) {
     const li = revealItem(r.id);
     if (!li) continue;
@@ -314,6 +325,7 @@ socket.on('game:over', ({ scores }) => {
   clearInterval(tick);
   renderBoard(scores);
   show('board');
+  Sound.play('win');
 });
 socket.on('game:aborted', () => { clearInterval(tick); show('room'); });
 
@@ -330,6 +342,7 @@ socket.on('chat:msg', ({ name, text }) => {
   const log = $('chatLog');
   log.append(li);
   log.scrollTop = log.scrollHeight;
+  if (name !== $('nameInput').value.trim()) Sound.play('chat');
 });
 $('chatInput').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
@@ -343,3 +356,12 @@ const leave = () => { clearInterval(tick); socket.emit('room:leave'); show('lobb
 $('leaveBtn').onclick = leave;
 $('gameLeaveBtn').onclick = leave;
 $('boardLeaveBtn').onclick = leave;
+
+// ---- Ses aç/kapa ----
+function updateMute() {
+  const m = Sound.isMuted();
+  $('muteBtn').textContent = m ? '🔇' : '🔊';
+  $('muteBtn').setAttribute('aria-label', m ? 'Sesi aç' : 'Sesi kapat');
+}
+$('muteBtn').onclick = () => { Sound.toggle(); updateMute(); };
+updateMute();
