@@ -10,7 +10,7 @@ app.use(express.static('public'));
 
 const AVATAR_COUNT = 8;
 const MAX_PLAYERS = 8;
-const CARD_COUNT = 30;      // public/images/cards/card0.png ... card29.png
+const CARD_COUNT = 37;      // public/images/cards/card0.png ... card29.png
 const PICK_SECONDS = 30;    // kart seçme süresi
 const REVEAL_SECONDS = 8;   // kartlar açıldıktan sonra bekleme (aşama 4'te emoji süresi olacak)
 
