@@ -16,11 +16,9 @@ const VOTE_SECONDS = 15;    // kartlar açıldıktan sonra emoji bırakma süres
 const RESULT_SECONDS = 6;   // tur puanlarının gösterilme süresi
 // Emojiler ve puanları. İstersen değiştir (sıra: en düşükten en yükseğe).
 const EMOJIS = [
-  { e: '😐', points: 1 },
-  { e: '🙂', points: 2 },
-  { e: '😄', points: 3 },
-  { e: '😂', points: 4 },
-  { e: '🤣', points: 5 }
+  { e: '🙂', points: 1 },
+  { e: '😂', points: 2 },
+  { e: '🤣', points: 3 }
 ];
 
 const rooms = new Map();
