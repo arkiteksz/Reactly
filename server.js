@@ -16,12 +16,12 @@ const clean = (s, max) => String(s || '').replace(/[<>]/g, '').trim().slice(0, m
 
 function roomList() {
   return [...rooms.values()].map(r => ({
-    id: r.id, name: r.name, count: r.players.size, max: MAX_PLAYERS
+    id: r.id, name: r.name, count: r.players.size, max: MAX_PLAYERS, started: r.started
   }));
 }
 function roomState(r) {
   return {
-    id: r.id, name: r.name, hostId: r.hostId,
+    id: r.id, name: r.name, hostId: r.hostId, rounds: r.rounds, started: r.started,
     players: [...r.players.entries()].map(([id, p]) => ({ id, ...p }))
   };
 }
@@ -61,7 +61,7 @@ io.on('connection', socket => {
   socket.on('room:create', ({ roomName }) => {
     if (!socket.data.name || socket.data.roomId) return;
     const id = 'r' + nextRoomId++;
-    const r = { id, name: clean(roomName, 20) || `${socket.data.name} odası`, hostId: socket.id, players: new Map() };
+    const r = { id, name: clean(roomName, 20) || `${socket.data.name} odası`, hostId: socket.id, rounds: 5, started: false, players: new Map() };
     rooms.set(id, r);
     enter(r, socket);
   });
@@ -70,7 +70,27 @@ io.on('connection', socket => {
     const r = rooms.get(id);
     if (!socket.data.name || socket.data.roomId || !r) return socket.emit('error:msg', 'Oda bulunamadı.');
     if (r.players.size >= MAX_PLAYERS) return socket.emit('error:msg', 'Oda dolu.');
+    if (r.started) return socket.emit('error:msg', 'Oyun başlamış.');
     enter(r, socket);
+  });
+
+  socket.on('room:settings', ({ rounds }) => {
+    const r = rooms.get(socket.data.roomId);
+    if (!r || r.hostId !== socket.id || r.started) return;
+    const n = parseInt(rounds);
+    if (![3, 5, 7, 10].includes(n)) return;
+    r.rounds = n;
+    io.to(r.id).emit('room:update', roomState(r));
+  });
+
+  socket.on('game:start', () => {
+    const r = rooms.get(socket.data.roomId);
+    if (!r || r.hostId !== socket.id || r.started) return;
+    if (r.players.size < 2) return socket.emit('error:msg', 'Başlamak için en az 2 oyuncu lazım.');
+    r.started = true;
+    io.to(r.id).emit('room:update', roomState(r));
+    io.to(r.id).emit('game:started', { rounds: r.rounds });
+    broadcastRooms();
   });
 
   socket.on('room:leave', () => leaveRoom(socket));
@@ -78,4 +98,4 @@ io.on('connection', socket => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log('Sunucu çalışıyor: http://localhost:' + PORT));
+server.listen(PORT, () => console.log('Reactly çalışıyor: http://localhost:' + PORT));
