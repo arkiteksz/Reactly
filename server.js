@@ -10,9 +10,18 @@ app.use(express.static('public'));
 
 const AVATAR_COUNT = 8;
 const MAX_PLAYERS = 8;
-const CARD_COUNT = 37;      // public/images/cards/card0.png ... card29.png
+const CARD_COUNT = 37;      // public/images/cards/card0.png ... card36.png
 const PICK_SECONDS = 30;    // kart seçme süresi
-const REVEAL_SECONDS = 8;   // kartlar açıldıktan sonra bekleme (aşama 4'te emoji süresi olacak)
+const VOTE_SECONDS = 15;    // kartlar açıldıktan sonra emoji bırakma süresi
+const RESULT_SECONDS = 6;   // tur puanlarının gösterilme süresi
+// Emojiler ve puanları. İstersen değiştir (sıra: en düşükten en yükseğe).
+const EMOJIS = [
+  { e: '😐', points: 1 },
+  { e: '🙂', points: 2 },
+  { e: '😄', points: 3 },
+  { e: '😂', points: 4 },
+  { e: '🤣', points: 5 }
+];
 
 const rooms = new Map();
 let nextRoomId = 1;
@@ -55,7 +64,8 @@ function dealHands(r) {
 }
 
 function startGame(r) {
-  r.game = { round: 0, hands: dealHands(r), plays: new Map(), phase: 'idle', timer: null, prompts: shuffle(PROMPTS) };
+  r.game = { round: 0, hands: dealHands(r), plays: new Map(), phase: 'idle', timer: null, prompts: shuffle(PROMPTS),
+    scores: new Map([...r.players.keys()].map(id => [id, 0])), votes: new Map(), revealed: [], revealedPlays: [] };
   for (const [id, cards] of r.game.hands) io.to(id).emit('game:hand', { cards });
   nextRound(r);
 }
@@ -102,18 +112,78 @@ function autoPlay(r) {
 
 function reveal(r) {
   const g = r.game;
-  g.phase = 'reveal';
+  g.phase = 'vote';
   clearTimeout(g.timer);
-  const plays = [...g.plays.entries()].map(([id, card]) => ({ id, ...r.players.get(id), card }));
-  io.to(r.id).emit('round:reveal', { plays, seconds: REVEAL_SECONDS });
-  g.timer = setTimeout(() => nextRound(r), REVEAL_SECONDS * 1000);
+  g.votes = new Map();
+  g.revealedPlays = [...g.plays.entries()].map(([id, card]) => ({ id, ...r.players.get(id), card }));
+  g.revealed = g.revealedPlays.map(p => p.id);
+  io.to(r.id).emit('round:reveal', { plays: g.revealedPlays, emojis: EMOJIS, seconds: VOTE_SECONDS });
+  g.timer = setTimeout(() => endVote(r), VOTE_SECONDS * 1000);
+}
+
+function votesComplete(r) {
+  const g = r.game;
+  return [...r.players.keys()].every(id => {
+    const need = g.revealed.filter(t => t !== id).length;
+    const v = g.votes.get(id);
+    return (v ? v.size : 0) >= need;
+  });
+}
+
+function checkVotesDone(r) {
+  const g = r.game;
+  if (g && g.phase === 'vote' && votesComplete(r)) endVote(r);
+}
+
+function castVote(r, voter, target, emoji) {
+  const g = r.game;
+  if (!g || g.phase !== 'vote' || !r.players.has(voter)) return;
+  if (target === voter || !g.revealed.includes(target) || !EMOJIS[emoji]) return;
+  if (!g.votes.has(voter)) g.votes.set(voter, new Map());
+  g.votes.get(voter).set(target, emoji);
+  io.to(voter).emit('vote:ok', { target, emoji });
+  const done = [...r.players.keys()].filter(id => {
+    const need = g.revealed.filter(t => t !== id).length;
+    const v = g.votes.get(id);
+    return (v ? v.size : 0) >= need;
+  }).length;
+  io.to(r.id).emit('vote:progress', { done, total: r.players.size });
+  checkVotesDone(r);
+}
+
+function endVote(r) {
+  const g = r.game;
+  if (!g || g.phase !== 'vote') return;
+  g.phase = 'result';
+  clearTimeout(g.timer);
+  const counts = new Map(g.revealed.map(id => [id, EMOJIS.map(() => 0)]));
+  for (const [voter, votes] of g.votes) {
+    for (const [target, emoji] of votes) {
+      if (target !== voter && counts.has(target)) counts.get(target)[emoji]++;
+    }
+  }
+  const results = g.revealedPlays.map(p => {
+    const c = counts.get(p.id);
+    const gained = c.reduce((sum, n, i) => sum + n * EMOJIS[i].points, 0);
+    const total = (g.scores.get(p.id) || 0) + gained;
+    g.scores.set(p.id, total);
+    return { ...p, counts: c, gained, total };
+  });
+  io.to(r.id).emit('round:scores', { results, seconds: RESULT_SECONDS });
+  g.timer = setTimeout(() => nextRound(r), RESULT_SECONDS * 1000);
 }
 
 function endGame(r) {
-  if (r.game) clearTimeout(r.game.timer);
+  let scores = [];
+  if (r.game) {
+    clearTimeout(r.game.timer);
+    scores = [...r.players.entries()]
+      .map(([id, p]) => ({ id, ...p, score: r.game.scores.get(id) || 0 }))
+      .sort((a, b) => b.score - a.score);
+  }
   r.game = null;
   r.started = false;
-  io.to(r.id).emit('game:over');
+  io.to(r.id).emit('game:over', { scores });
   io.to(r.id).emit('room:update', roomState(r));
   broadcastRooms();
 }
@@ -127,6 +197,7 @@ function leaveRoom(socket) {
   if (r.game) {
     r.game.hands.delete(socket.id);
     r.game.plays.delete(socket.id);
+    r.game.votes.delete(socket.id);
   }
   if (r.players.size === 0) {
     if (r.game) clearTimeout(r.game.timer);
@@ -141,6 +212,7 @@ function leaveRoom(socket) {
     }
     io.to(r.id).emit('room:update', roomState(r));
     checkAllPlayed(r);
+    checkVotesDone(r);
   }
   broadcastRooms();
 }
@@ -204,6 +276,11 @@ io.on('connection', socket => {
     const g = r && r.game;
     if (!g || g.phase !== 'pick' || g.plays.has(socket.id)) return;
     playCard(r, socket.id, parseInt(card));
+  });
+
+  socket.on('vote', ({ target, emoji }) => {
+    const r = rooms.get(socket.data.roomId);
+    if (r) castVote(r, socket.id, String(target), parseInt(emoji));
   });
 
   socket.on('chat:send', ({ text }) => {
