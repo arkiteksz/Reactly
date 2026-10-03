@@ -50,10 +50,10 @@ function renderRooms(list) {
     const li = document.createElement('li');
     const b = document.createElement('button');
     b.className = 'room-item';
-    b.disabled = r.count >= r.max;
+    b.disabled = r.count >= r.max || r.started;
     b.setAttribute('aria-pressed', r.id === selected);
     const n = document.createElement('span'); n.textContent = r.name;
-    const c = document.createElement('span'); c.textContent = `${r.count}/${r.max}`;
+    const c = document.createElement('span'); c.textContent = r.started ? 'Oyunda' : `${r.count}/${r.max}`;
     b.append(n, c);
     b.onclick = () => { selected = r.id; renderRooms(list); };
     li.append(b);
@@ -82,13 +82,20 @@ $('joinBtn').onclick = () => {
 };
 
 socket.on('rooms', renderRooms);
-socket.on('error:msg', say);
+socket.on('error:msg', t => { say(t); $('roomMsg').textContent = t; });
 
-// ---- Oda içi (şimdilik basit liste) ----
+// ---- Oda içi ----
+const ROUND_OPTIONS = [3, 5, 7, 10];
+
+function show(id) {
+  for (const s of ['lobby', 'room', 'game']) $(s).hidden = s !== id;
+}
+
 function showRoom(state) {
-  $('lobby').hidden = true;
-  $('room').hidden = false;
+  show('room');
   $('roomTitle').textContent = state.name.toUpperCase();
+  const isHost = state.hostId === socket.id;
+
   const ul = $('playerList');
   ul.replaceChildren();
   for (const p of state.players) {
@@ -100,12 +107,35 @@ function showRoom(state) {
     if (p.id === state.hostId) { const k = document.createElement('span'); k.className = 'crown'; k.textContent = '👑'; li.append(k); }
     ul.append(li);
   }
+
+  const picker = $('roundPicker');
+  picker.replaceChildren();
+  for (const n of ROUND_OPTIONS) {
+    const b = document.createElement('button');
+    b.className = 'round-btn';
+    b.textContent = n;
+    b.disabled = !isHost;
+    b.setAttribute('aria-pressed', n === state.rounds);
+    b.onclick = () => socket.emit('room:settings', { rounds: n });
+    picker.append(b);
+  }
+
+  const start = $('startBtn');
+  start.hidden = !isHost;
+  start.disabled = state.players.length < 2;
+  $('roomMsg').textContent = !isHost
+    ? 'Oyunu odanın kurucusu başlatır.'
+    : state.players.length < 2 ? 'En az 2 oyuncu lazım.' : '';
 }
+
 socket.on('room:joined', showRoom);
 socket.on('room:update', s => { if (!$('room').hidden) showRoom(s); });
-$('leaveBtn').onclick = () => {
-  socket.emit('room:leave');
-  $('room').hidden = true;
-  $('lobby').hidden = false;
-  selected = null; say('');
-};
+socket.on('game:started', ({ rounds }) => {
+  show('game');
+  $('gameInfo').textContent = `Oyun başladı! ${rounds} tur oynanacak. Oyun ekranı bir sonraki aşamada gelecek.`;
+});
+
+$('startBtn').onclick = () => socket.emit('game:start');
+const leave = () => { socket.emit('room:leave'); show('lobby'); selected = null; say(''); };
+$('leaveBtn').onclick = leave;
+$('gameLeaveBtn').onclick = leave;
