@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tepki Oyunu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="lobby" class="screen">
+  <h1 class="title-tag">OYUN ODALARI</h1>
+  <section class="frame">
+    <ul id="roomList" class="rooms" aria-label="Açık odalar"></ul>
+    <aside class="profile">
+      <button id="avatarBtn" class="avatar" title="Avatarı değiştir" aria-label="Avatarı değiştir"></button>
+      <input id="nameInput" class="pill yellow" maxlength="14" placeholder="İsmin" autocomplete="off">
+      <button id="createBtn" class="pill cyan">ODA OLUŞTUR</button>
+      <button id="joinBtn" class="pill green" disabled>ODAYA KATIL</button>
+      <p id="msg" class="msg" role="alert"></p>
+    </aside>
+  </section>
+</main>
+
+<main id="room" class="screen" hidden>
+  <h1 id="roomTitle" class="title-tag">ODA</h1>
+  <section class="frame single">
+    <ul id="playerList" class="players"></ul>
+    <p class="msg">Oyun başlatma ekranı bir sonraki aşamada gelecek.</p>
+    <button id="leaveBtn" class="pill pink">ODADAN AYRIL</button>
+  </section>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
